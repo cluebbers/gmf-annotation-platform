@@ -1,0 +1,102 @@
+import enum
+from datetime import datetime
+
+from app.db import Base
+from sqlalchemy import (DateTime, Enum, Float, ForeignKey, Integer, String,
+                        Text, func)
+from sqlalchemy.orm import Mapped, mapped_column
+
+
+class RunStatus(str, enum.Enum):
+    success = "success"
+    failed = "failed"
+
+
+class AnnotationSource(str, enum.Enum):
+    gold = "gold"
+    prediction = "prediction"
+
+
+class GmfCategory(str, enum.Enum):
+    known_ai_technical_failure = "known_ai_technical_failure"
+    potential_ai_technical_failure = "potential_ai_technical_failure"
+
+
+class Incident(Base):
+    __tablename__ = "incidents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str | None] = mapped_column(String, nullable=True)
+    report_text: Mapped[str] = mapped_column(Text, nullable=False)
+    source_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class ModelRun(Base):
+    __tablename__ = "model_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    incident_id: Mapped[int] = mapped_column(ForeignKey("incidents.id"), nullable=False)
+    model_name: Mapped[str] = mapped_column(String, nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[RunStatus] = mapped_column(
+        Enum(RunStatus, native_enum=False),
+        nullable=False,
+    )
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    raw_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class Annotation(Base):
+    __tablename__ = "annotations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    incident_id: Mapped[int] = mapped_column(ForeignKey("incidents.id"), nullable=False)
+    source: Mapped[AnnotationSource] = mapped_column(
+        Enum(AnnotationSource, native_enum=False),
+        nullable=False,
+    )
+    model_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("model_runs.id"),
+        nullable=True,
+    )
+    gmf_category: Mapped[GmfCategory] = mapped_column(
+        Enum(GmfCategory, native_enum=False),
+        nullable=False,
+    )
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    classification_discussion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+
+class AnnotationSnippet(Base):
+    __tablename__ = "annotation_snippets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    annotation_id: Mapped[int] = mapped_column(
+        ForeignKey("annotations.id"),
+        nullable=False,
+    )
+    snippet_text: Mapped[str] = mapped_column(Text, nullable=False)
+    snippet_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
