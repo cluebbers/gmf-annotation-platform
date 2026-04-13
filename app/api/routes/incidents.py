@@ -1,133 +1,70 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api.schemas import DeleteResponse, IncidentCreate, IncidentRead, IncidentUpdate
+from app.api.schemas import IncidentDetailRead, IncidentRead, PredictionLabels
 from app.db import get_db
-from app.models import Annotation, AnnotationSnippet, Incident, ModelRun
+from app.db.tables import Annotation, AnnotationSource, GmfCategory, Incident
 
-router = APIRouter(tags=["incidents"])
+router = APIRouter()
 
 
 @router.get("/incidents", response_model=list[IncidentRead])
 def list_incidents(db: Session = Depends(get_db)) -> list[Incident]:
-    statement = select(Incident).order_by(Incident.id.desc())
+    statement = select(Incident).order_by(Incident.id.asc())
     return db.execute(statement).scalars().all()
 
 
-@router.post(
-    "/incidents",
-    response_model=IncidentRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_incident(
-    payload: IncidentCreate,
-    db: Session = Depends(get_db),
-) -> Incident:
-    incident = Incident(
-        title=payload.title,
-        report_text=payload.report_text,
-        source_url=payload.source_url,
+@router.get("/incidents/{incident_id}", response_model=IncidentDetailRead)
+def get_incident(incident_id: int, db: Session = Depends(get_db)) -> IncidentDetailRead:
+    incident = db.get(Incident, incident_id)
+    if incident is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Incident not found.",
+        )
+    return IncidentDetailRead(
+        id=incident.id,
+        title=incident.title,
+        report_text=incident.report_text,
+        is_gold_set=incident.is_gold_set,
+        created_at=incident.created_at,
+        gold_annotations=_load_gold_annotations(db, incident.id)
+        if incident.is_gold_set
+        else None,
     )
 
-    try:
-        db.add(incident)
-        db.commit()
-        db.refresh(incident)
-    except SQLAlchemyError:
-        db.rollback()
-        raise
 
-    return incident
-
-
-@router.get("/incidents/{incident_id}", response_model=IncidentRead)
-def get_incident(
-    incident_id: int,
-    db: Session = Depends(get_db),
-) -> Incident:
-    incident = db.get(Incident, incident_id)
-    if incident is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found.")
-
-    return incident
-
-
-@router.put("/incidents/{incident_id}", response_model=IncidentRead)
-def update_incident(
-    incident_id: int,
-    payload: IncidentUpdate,
-    db: Session = Depends(get_db),
-) -> Incident:
-    incident = db.get(Incident, incident_id)
-    if incident is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found.")
-
-    updates = payload.model_dump(exclude_unset=True)
-    if not updates:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one field must be provided.",
+def _load_gold_annotations(db: Session, incident_id: int) -> PredictionLabels:
+    labels_by_category = {
+        GmfCategory.known_ai_technical_failure: [],
+        GmfCategory.potential_ai_technical_failure: [],
+    }
+    seen_by_category = {
+        GmfCategory.known_ai_technical_failure: set(),
+        GmfCategory.potential_ai_technical_failure: set(),
+    }
+    statement = (
+        select(Annotation.gmf_category, Annotation.label)
+        .where(
+            Annotation.incident_id == incident_id,
+            Annotation.source == AnnotationSource.gold,
         )
+        .order_by(Annotation.id.asc())
+    )
 
-    for field, value in updates.items():
-        setattr(incident, field, value)
+    for category, label in db.execute(statement):
+        cleaned = label.strip()
+        if not cleaned or cleaned in seen_by_category[category]:
+            continue
+        seen_by_category[category].add(cleaned)
+        labels_by_category[category].append(cleaned)
 
-    try:
-        db.commit()
-        db.refresh(incident)
-    except SQLAlchemyError:
-        db.rollback()
-        raise
-
-    return incident
-
-
-@router.delete("/incidents/{incident_id}", response_model=DeleteResponse)
-def delete_incident(
-    incident_id: int,
-    db: Session = Depends(get_db),
-) -> DeleteResponse:
-    incident = db.get(Incident, incident_id)
-    if incident is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found.")
-
-    annotation_ids = db.execute(
-        select(Annotation.id).where(Annotation.incident_id == incident.id)
-    ).scalars().all()
-
-    if annotation_ids:
-        snippets = db.execute(
-            select(AnnotationSnippet).where(
-                AnnotationSnippet.annotation_id.in_(annotation_ids)
-            )
-        ).scalars().all()
-        for snippet in snippets:
-            db.delete(snippet)
-
-    annotations = db.execute(
-        select(Annotation).where(Annotation.incident_id == incident.id)
-    ).scalars().all()
-    model_runs = db.execute(
-        select(ModelRun).where(ModelRun.incident_id == incident.id)
-    ).scalars().all()
-
-    try:
-        db.flush()
-
-        for annotation in annotations:
-            db.delete(annotation)
-        db.flush()
-
-        for model_run in model_runs:
-            db.delete(model_run)
-        db.flush()
-
-        db.delete(incident)
-        db.commit()
-    except SQLAlchemyError:
-        db.rollback()
-        raise
-
-    return DeleteResponse(status="deleted")
+    return PredictionLabels(
+        known_ai_technical_failure=labels_by_category[
+            GmfCategory.known_ai_technical_failure
+        ],
+        potential_ai_technical_failure=labels_by_category[
+            GmfCategory.potential_ai_technical_failure
+        ],
+    )
