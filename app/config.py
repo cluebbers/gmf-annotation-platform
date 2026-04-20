@@ -1,3 +1,5 @@
+"""Application configuration settings."""
+
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +11,14 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
 def _optional_int(name: str) -> int | None:
+    """Parse an optional integer environment variable.
+
+    Args:
+        name: The environment variable name.
+
+    Returns:
+        The parsed integer or None if not set or empty.
+    """
     value = os.getenv(name)
     if value is None or not value.strip():
         return None
@@ -17,6 +27,7 @@ def _optional_int(name: str) -> int | None:
 
 @dataclass(frozen=True)
 class Settings:
+    """Application settings loaded from environment variables."""
     postgres_host: str = os.getenv("POSTGRES_HOST", "localhost")
     postgres_port: str = os.getenv("POSTGRES_PORT", "5432")
     postgres_db: str = os.getenv("POSTGRES_DB", "gmf_annotation")
@@ -33,6 +44,11 @@ class Settings:
 
     @property
     def database_url(self) -> str:
+        """Construct the database URL from PostgreSQL settings.
+
+        Returns:
+            The database connection URL.
+        """
         return (
             "postgresql+psycopg2://"
             f"{self.postgres_user}:{self.postgres_password}"

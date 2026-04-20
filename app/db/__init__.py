@@ -1,3 +1,5 @@
+"""Database initialization and session management."""
+
 from collections.abc import Generator
 
 from app.config import settings
@@ -6,6 +8,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
 class Base(DeclarativeBase):
+    """Base class for SQLAlchemy declarative models."""
     pass
 
 
@@ -19,6 +22,11 @@ SessionLocal = sessionmaker(
 
 
 def get_db() -> Generator[Session, None, None]:
+    """Dependency to get a database session.
+
+    Yields:
+        Session: A SQLAlchemy session instance.
+    """
     db = SessionLocal()
     try:
         yield db
@@ -27,6 +35,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def init_db() -> None:
+    """Initialize the database by creating all tables and applying fixes."""
     import app.db.tables  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
@@ -34,6 +43,7 @@ def init_db() -> None:
 
 
 def _apply_postgres_compatibility_fixes() -> None:
+    """Apply PostgreSQL-specific compatibility fixes to the database schema."""
     if engine.dialect.name != "postgresql":
         return
 

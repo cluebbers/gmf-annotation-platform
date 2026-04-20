@@ -1,3 +1,5 @@
+"""OpenAI integration for predictions and chat."""
+
 from functools import lru_cache
 
 from openai import OpenAI
@@ -12,12 +14,18 @@ from app.config import settings
 
 
 class StructuredPrediction(BaseModel):
+    """Schema for structured prediction output from OpenAI."""
     known_ai_technical_failure: list[KnownAITechnicalFailureLabel] = Field(default_factory=list)
     potential_ai_technical_failure: list[PotentialAITechnicalFailureLabel] = Field(default_factory=list)
 
 
 @lru_cache(maxsize=1)
 def _get_openai_client() -> OpenAI:
+    """Get OpenAI client singleton.
+
+    Returns:
+        OpenAI client instance.
+    """
     return OpenAI(
         api_key=settings.openai_api_key,
         timeout=settings.openai_timeout_seconds,
@@ -25,6 +33,15 @@ def _get_openai_client() -> OpenAI:
 
 
 def build_incident_prompt(title: str | None, report_text: str) -> str:
+    """Build incident prompt for OpenAI.
+
+    Args:
+        title: Incident title.
+        report_text: Incident report text.
+
+    Returns:
+        Formatted prompt.
+    """
     return (
         "Incident data:\n"
         f"Title: {title or 'N/A'}\n"
@@ -39,6 +56,20 @@ def chat_completion(
     history: list[dict[str, str]],
     message: str,
 ) -> str:
+    """Get chat completion for an incident.
+
+    Args:
+        title: Incident title.
+        report_text: Incident report text.
+        history: Chat history.
+        message: User message.
+
+    Returns:
+        Chat completion response.
+
+    Raises:
+        RuntimeError: If OpenAI request fails.
+    """
     client = _get_openai_client()
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -63,6 +94,20 @@ def predict_incident(
     model_name: str | None = None,
     temperature: float | None = None,
 ) -> dict[str, object]:
+    """Predict GMF labels for an incident using OpenAI.
+
+    Args:
+        title: Incident title.
+        report_text: Incident report text.
+        model_name: Optional model name override.
+        temperature: Optional temperature override.
+
+    Returns:
+        Prediction result with labels, model name, and token counts.
+
+    Raises:
+        RuntimeError: If OpenAI request fails.
+    """
     client = _get_openai_client()
     user_prompt = build_incident_prompt(title, report_text)
     model = model_name or settings.openai_model

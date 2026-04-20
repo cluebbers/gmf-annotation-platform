@@ -1,3 +1,5 @@
+"""API routes for prediction functionality."""
+
 from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -32,6 +34,21 @@ def predict(
     temperature: float | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> PredictResponse:
+    """Predict labels for an incident.
+
+    Args:
+        incident_id: The incident ID.
+        model_name: Optional model name override.
+        prompt_version: Optional prompt version override.
+        temperature: Optional temperature override.
+        db: Database session.
+
+    Returns:
+        Prediction response.
+
+    Raises:
+        HTTPException: If incident not found or API key not configured.
+    """
     incident = db.get(Incident, incident_id)
     if incident is None:
         raise HTTPException(
@@ -78,6 +95,14 @@ def predict(
 
 
 def _normalize_prediction_labels(result: dict[str, object]) -> PredictionLabels:
+    """Normalize prediction labels from raw result.
+
+    Args:
+        result: Raw prediction result.
+
+    Returns:
+        Normalized prediction labels.
+    """
     def normalize(values: object) -> list[str]:
         normalized: list[str] = []
         seen: set[str] = set()
@@ -108,6 +133,20 @@ def _save_successful_prediction(
     prompt_version: str | None = None,
     temperature: float | None = None,
 ) -> ModelRun:
+    """Save a successful prediction to the database.
+
+    Args:
+        db: Database session.
+        incident_id: The incident ID.
+        result: Raw prediction result.
+        prediction: Normalized prediction labels.
+        latency_ms: Latency in milliseconds.
+        prompt_version: Optional prompt version.
+        temperature: Optional temperature.
+
+    Returns:
+        Created ModelRun.
+    """
     model_run = ModelRun(
         incident_id=incident_id,
         provider="openai",

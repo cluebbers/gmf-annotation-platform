@@ -1,3 +1,5 @@
+"""Streamlit application for GMF annotation platform."""
+
 import os
 
 import requests
@@ -8,6 +10,20 @@ API_TIMEOUT_SECONDS = 30
 
 
 def call_api(method: str, path: str, body: dict | None = None, params: dict | None = None) -> dict | list:
+    """Call the backend API.
+
+    Args:
+        method: HTTP method (GET, POST, etc.).
+        path: API path.
+        body: Optional request body.
+        params: Optional query parameters.
+
+    Returns:
+        API response payload.
+
+    Raises:
+        RuntimeError: If request fails.
+    """
     try:
         response = requests.request(
             method,
@@ -34,12 +50,28 @@ def call_api(method: str, path: str, body: dict | None = None, params: dict | No
 
 
 def label_chips(labels: list[str]) -> str:
+    """Format labels as markdown chips.
+
+    Args:
+        labels: List of labels.
+
+    Returns:
+        Formatted markdown string.
+    """
     if not labels:
         return "_None_"
     return "  ".join(f"`{label}`" for label in labels)
 
 
 def format_incident_prompt(incident: dict) -> str:
+    """Format incident data as a prompt.
+
+    Args:
+        incident: Incident data dictionary.
+
+    Returns:
+        Formatted prompt string.
+    """
     return (
         f"Incident data:\n"
         f"Title: {incident['title'] or 'N/A'}\n"
@@ -49,12 +81,28 @@ def format_incident_prompt(incident: dict) -> str:
 
 
 def prediction_to_text(prediction: dict) -> str:
+    """Convert prediction to text format.
+
+    Args:
+        prediction: Prediction result dictionary.
+
+    Returns:
+        Text representation of prediction.
+    """
     known = ", ".join(prediction["known_ai_technical_failure"]) or "None"
     potential = ", ".join(prediction["potential_ai_technical_failure"]) or "None"
     return f"Known AI Technical Failure: {known}\nPotential AI Technical Failure: {potential}"
 
 
 def build_chat_history(messages: list[dict]) -> list[dict[str, str]]:
+    """Build chat history from message list.
+
+    Args:
+        messages: List of messages from session state.
+
+    Returns:
+        Formatted chat history list.
+    """
     history = []
     for msg in messages:
         if msg["kind"] == "prediction_user":

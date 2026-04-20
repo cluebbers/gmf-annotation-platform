@@ -1,1 +1,1 @@
-# Route modules are imported by app.api.router.
+"""Route modules are imported by app.api.router."""

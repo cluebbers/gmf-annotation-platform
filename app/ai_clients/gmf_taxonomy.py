@@ -1,3 +1,5 @@
+"""GMF taxonomy definitions and system prompt."""
+
 from typing import Literal
 
 
@@ -69,6 +71,8 @@ KnownAITechnicalFailureLabel = Literal[
     "Unsafe Exposure or Access",
     "Untested Deployment",
 ]
+"""Known AI technical failure labels."""
+
 
 PotentialAITechnicalFailureLabel = Literal[
     "Adversarial Data",
@@ -134,6 +138,7 @@ PotentialAITechnicalFailureLabel = Literal[
     "Unsafe Exposure or Access",
     "Untested Deployment",
 ]
+"""Potential AI technical failure labels."""
 
 _known_labels = ", ".join(sorted(KnownAITechnicalFailureLabel.__args__))
 _potential_labels = ", ".join(sorted(PotentialAITechnicalFailureLabel.__args__))

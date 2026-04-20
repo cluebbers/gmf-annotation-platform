@@ -1,3 +1,5 @@
+"""API routes for incident management."""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,12 +13,32 @@ router = APIRouter()
 
 @router.get("/incidents", response_model=list[IncidentRead])
 def list_incidents(db: Session = Depends(get_db)) -> list[Incident]:
+    """List all incidents.
+
+    Args:
+        db: Database session.
+
+    Returns:
+        List of incidents.
+    """
     statement = select(Incident).order_by(Incident.id.asc())
     return db.execute(statement).scalars().all()
 
 
 @router.get("/incidents/{incident_id}", response_model=IncidentDetailRead)
 def get_incident(incident_id: int, db: Session = Depends(get_db)) -> IncidentDetailRead:
+    """Get a specific incident by ID.
+
+    Args:
+        incident_id: The incident ID.
+        db: Database session.
+
+    Returns:
+        Detailed incident data.
+
+    Raises:
+        HTTPException: If incident not found.
+    """
     incident = db.get(Incident, incident_id)
     if incident is None:
         raise HTTPException(
@@ -36,6 +58,15 @@ def get_incident(incident_id: int, db: Session = Depends(get_db)) -> IncidentDet
 
 
 def _load_gold_annotations(db: Session, incident_id: int) -> PredictionLabels:
+    """Load gold annotations for an incident.
+
+    Args:
+        db: Database session.
+        incident_id: The incident ID.
+
+    Returns:
+        Prediction labels from gold annotations.
+    """
     labels_by_category = {
         GmfCategory.known_ai_technical_failure: [],
         GmfCategory.potential_ai_technical_failure: [],

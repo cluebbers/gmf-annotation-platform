@@ -1,3 +1,5 @@
+"""Pydantic schemas for API request/response models."""
+
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -6,10 +8,12 @@ from app.db.tables import RunStatus
 
 
 class ResponseSchema(BaseModel):
+    """Base schema with configuration for response models."""
     model_config = ConfigDict(from_attributes=True)
 
 
 class IncidentRead(ResponseSchema):
+    """Schema for reading incident data."""
     id: int
     title: str | None
     report_text: str
@@ -18,6 +22,7 @@ class IncidentRead(ResponseSchema):
 
 
 class ModelRunRead(ResponseSchema):
+    """Schema for reading model run data."""
     id: int
     incident_id: int
     provider: str
@@ -33,27 +38,32 @@ class ModelRunRead(ResponseSchema):
 
 
 class PredictionLabels(BaseModel):
+    """Schema for prediction labels."""
     known_ai_technical_failure: list[str] = Field(default_factory=list)
     potential_ai_technical_failure: list[str] = Field(default_factory=list)
 
 
 class IncidentDetailRead(IncidentRead):
+    """Schema for detailed incident data including gold annotations."""
     gold_annotations: PredictionLabels | None = None
 
 
 class PredictResponse(BaseModel):
+    """Schema for prediction response."""
     incident_id: int
     model_run: ModelRunRead
     prediction: PredictionLabels
 
 
 class CategoryMetrics(BaseModel):
+    """Schema for category metrics."""
     precision: float
     recall: float
     f1: float
 
 
 class CompareResponse(BaseModel):
+    """Schema for comparison response."""
     model_name: str
     prompt_version: str
     temperature: float | None

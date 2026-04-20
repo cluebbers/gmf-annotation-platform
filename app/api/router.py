@@ -1,3 +1,5 @@
+"""API router combining all sub-routers."""
+
 from fastapi import APIRouter
 
 from app.api.routes.chat import router as chat_router

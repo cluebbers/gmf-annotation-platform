@@ -1,3 +1,5 @@
+"""Import AIID incidents and GMF technical-failure gold labels from backup archive."""
+
 import argparse
 import csv
 import io
@@ -34,6 +36,7 @@ TECHNICAL_FAILURE_COLUMNS = {
 
 @dataclass(frozen=True)
 class ImportStats:
+    """Statistics from import operation."""
     incidents_created: int
     incidents_updated: int
     prediction_resets: int
@@ -43,6 +46,7 @@ class ImportStats:
 
 @dataclass(frozen=True)
 class ImportedIncident:
+    """Incident data read from backup."""
     incident_id: int
     title: str | None
     report_text: str
@@ -50,6 +54,7 @@ class ImportedIncident:
 
 
 def main() -> None:
+    """Main entry point for import script."""
     parser = argparse.ArgumentParser(
         description="Import AIID incidents and GMF technical-failure gold labels.",
     )
@@ -75,6 +80,14 @@ def main() -> None:
 
 
 def import_aiid_backup(archive_path: Path) -> ImportStats:
+    """Import incidents and labels from AIID backup archive.
+
+    Args:
+        archive_path: Path to backup tar.bz2 archive.
+
+    Returns:
+        Import statistics.
+    """
     incidents = _load_incidents(archive_path)
     gold_labels_by_incident = _load_gold_labels(archive_path)
 
@@ -152,6 +165,14 @@ def import_aiid_backup(archive_path: Path) -> ImportStats:
 
 
 def _load_incidents(archive_path: Path) -> list[ImportedIncident]:
+    """Load incident data from archive.
+
+    Args:
+        archive_path: Path to backup archive.
+
+    Returns:
+        List of imported incidents.
+    """
     incident_rows = _read_csv_from_tar(archive_path, INCIDENTS_MEMBER)
     gold_incident_ids = {
         int(row["Incident ID"])
@@ -179,6 +200,14 @@ def _load_incidents(archive_path: Path) -> list[ImportedIncident]:
 def _load_gold_labels(
     archive_path: Path,
 ) -> dict[int, dict[GmfCategory, list[str]]]:
+    """Load gold label annotations from archive.
+
+    Args:
+        archive_path: Path to backup archive.
+
+    Returns:
+        Dictionary mapping incident IDs to label categories and labels.
+    """
     labels_by_incident: dict[int, dict[GmfCategory, list[str]]] = {}
     for row in _read_csv_from_tar(archive_path, GMF_MEMBER):
         incident_id = int(row["Incident ID"])
@@ -190,6 +219,12 @@ def _load_gold_labels(
 
 
 def _delete_gold_annotations(db: Session, incident_id: int) -> None:
+    """Delete all gold annotations for an incident.
+
+    Args:
+        db: Database session.
+        incident_id: The incident ID.
+    """
     db.execute(
         delete(Annotation).where(
             Annotation.incident_id == incident_id,
@@ -200,6 +235,12 @@ def _delete_gold_annotations(db: Session, incident_id: int) -> None:
 
 
 def _delete_prediction_data(db: Session, incident_id: int) -> None:
+    """Delete all prediction data for an incident.
+
+    Args:
+        db: Database session.
+        incident_id: The incident ID.
+    """
     db.execute(
         delete(Annotation).where(
             Annotation.incident_id == incident_id,
@@ -211,6 +252,15 @@ def _delete_prediction_data(db: Session, incident_id: int) -> None:
 
 
 def _read_csv_from_tar(archive_path: Path, member_name: str) -> list[dict[str, str]]:
+    """Read CSV file from tar.bz2 archive.
+
+    Args:
+        archive_path: Path to archive.
+        member_name: Name of member in archive.
+
+    Returns:
+        List of CSV rows as dictionaries.
+    """
     with tarfile.open(archive_path, "r:bz2") as tar:
         file_obj = tar.extractfile(member_name)
         if file_obj is None:
@@ -220,6 +270,14 @@ def _read_csv_from_tar(archive_path: Path, member_name: str) -> list[dict[str, s
 
 
 def _split_label_field(value: str | None) -> list[str]:
+    """Split comma-separated labels and normalize.
+
+    Args:
+        value: Comma-separated label string.
+
+    Returns:
+        List of normalized labels.
+    """
     if value is None:
         return []
 
@@ -235,6 +293,14 @@ def _split_label_field(value: str | None) -> list[str]:
 
 
 def _normalize_optional(value: str | None) -> str | None:
+    """Normalize optional string value.
+
+    Args:
+        value: Input value.
+
+    Returns:
+        Normalized value or None.
+    """
     if value is None:
         return None
     normalized = value.strip()
@@ -244,6 +310,18 @@ def _normalize_optional(value: str | None) -> str | None:
 
 
 def _normalize_required(value: str | None, field_name: str) -> str:
+    """Normalize required string value.
+
+    Args:
+        value: Input value.
+        field_name: Field name for error message.
+
+    Returns:
+        Normalized value.
+
+    Raises:
+        ValueError: If value is empty.
+    """
     normalized = _normalize_optional(value)
     if normalized is None:
         raise ValueError(f"Missing required value for {field_name}")
@@ -251,6 +329,11 @@ def _normalize_required(value: str | None, field_name: str) -> str:
 
 
 def _sync_incident_id_sequence(db: Session) -> None:
+    """Sync PostgreSQL sequence for incident ID generation.
+
+    Args:
+        db: Database session.
+    """
     bind = db.get_bind()
     if bind is None or bind.dialect.name != "postgresql":
         return

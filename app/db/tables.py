@@ -1,3 +1,5 @@
+"""Database table definitions using SQLAlchemy ORM."""
+
 import enum
 from datetime import datetime
 
@@ -18,21 +20,25 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 
 class RunStatus(str, enum.Enum):
+    """Enumeration of possible model run statuses."""
     success = "success"
     failed = "failed"
 
 
 class AnnotationSource(str, enum.Enum):
+    """Enumeration of annotation sources."""
     gold = "gold"
     prediction = "prediction"
 
 
 class GmfCategory(str, enum.Enum):
+    """Enumeration of GMF categories."""
     known_ai_technical_failure = "known_ai_technical_failure"
     potential_ai_technical_failure = "potential_ai_technical_failure"
 
 
 class Incident(Base):
+    """Represents an incident in the database."""
     __tablename__ = "incidents"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -51,6 +57,7 @@ class Incident(Base):
 
 
 class ModelRun(Base):
+    """Represents a model run in the database."""
     __tablename__ = "model_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -81,6 +88,7 @@ class ModelRun(Base):
 
 
 class Annotation(Base):
+    """Represents an annotation in the database."""
     __tablename__ = "annotations"
 
     id: Mapped[int] = mapped_column(primary_key=True)

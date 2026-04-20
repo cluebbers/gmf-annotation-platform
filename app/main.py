@@ -1,3 +1,5 @@
+"""Main FastAPI application setup."""
+
 import logging
 from contextlib import asynccontextmanager
 
@@ -11,6 +13,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """Application lifespan context manager.
+
+    Args:
+        _: The FastAPI application instance (unused).
+
+    Handles database initialization on startup.
+    """
     try:
         init_db()
     except SQLAlchemyError:

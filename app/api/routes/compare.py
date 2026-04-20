@@ -1,3 +1,5 @@
+"""API routes for model comparison."""
+
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -13,6 +15,7 @@ ALLOWED_MODELS = ["gpt-4o-mini", "gpt-5-mini"]
 
 
 class CompareConfigsResponse(BaseModel):
+    """Schema for available comparison configurations."""
     models: list[str]
     prompt_versions: list[str]
     temperatures: list[float]
@@ -20,6 +23,14 @@ class CompareConfigsResponse(BaseModel):
 
 @router.get("/compare/configs", response_model=CompareConfigsResponse)
 def compare_configs(db: Session = Depends(get_db)) -> CompareConfigsResponse:
+    """Get available comparison configurations.
+
+    Args:
+        db: Database session.
+
+    Returns:
+        Available models, prompt versions, and temperatures.
+    """
     prompt_versions = db.execute(
         select(ModelRun.prompt_version).distinct().order_by(ModelRun.prompt_version.asc())
     ).scalars().all()
@@ -39,6 +50,17 @@ def _label_sets(
     source: AnnotationSource,
     model_run_id: int | None = None,
 ) -> dict[GmfCategory, set[str]]:
+    """Get label sets for an incident.
+
+    Args:
+        db: Database session.
+        incident_id: The incident ID.
+        source: The annotation source.
+        model_run_id: Optional model run ID to filter.
+
+    Returns:
+        Dictionary mapping categories to sets of labels.
+    """
     stmt = select(Annotation.gmf_category, Annotation.label).where(
         Annotation.incident_id == incident_id,
         Annotation.source == source,
@@ -55,6 +77,16 @@ def _label_sets(
 
 
 def _metrics(tp: int, fp: int, fn: int) -> CategoryMetrics:
+    """Calculate precision, recall, and F1 score.
+
+    Args:
+        tp: True positives.
+        fp: False positives.
+        fn: False negatives.
+
+    Returns:
+        Category metrics.
+    """
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     f1 = 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0.0
@@ -68,6 +100,17 @@ def compare(
     temperature: float | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> CompareResponse:
+    """Compare model performance across configurations.
+
+    Args:
+        model_name: The model name to compare.
+        prompt_version: The prompt version.
+        temperature: Optional temperature filter.
+        db: Database session.
+
+    Returns:
+        Comparison results including metrics.
+    """
     gold_incidents = db.execute(
         select(Incident.id).where(Incident.is_gold_set.is_(True))
     ).scalars().all()
