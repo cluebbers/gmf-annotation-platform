@@ -38,7 +38,7 @@ Important defaults:
 - Postgres runs on `localhost:5432`
 - the default database is `gmf_annotation`
 - the frontend expects the API at `http://localhost:8000`
-- the default OpenAI model is `gpt-5.4-mini`
+- the default OpenAI model is `gpt-4o-mini`
 
 ### Install And Run
 
@@ -135,8 +135,16 @@ The API does not compute dataset-level evaluation metrics.
 
 ## Future Work
 
-- Gemini support
-- OpenAI vs Gemini comparison
-- prompt and parameter experiments
-- optional Groq support
-- automated tests
+- [ ] additional model support through build.nvidia.com
+- [x] model comparison
+- [ ] prompt and parameter experiments
+
+## Project requirements
+
+- [x] Flask API - 2 POST endpoints & 2 GET endpoints
+- [x] SQLite DB - 2 Tables inserting and reading entries
+- [x] 1 Text Generation endpoint updating the DB
+- [x] Structured output
+- [x] Use case specific Comparative analysis
+- [ ] 2 prompt engineering techniques
+- [x] Retaining Conversation History
