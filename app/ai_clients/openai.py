@@ -3,23 +3,17 @@ from functools import lru_cache
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
+from app.ai_clients.gmf_taxonomy import (
+    KnownAITechnicalFailureLabel,
+    PotentialAITechnicalFailureLabel,
+    SYSTEM_PROMPT,
+)
 from app.config import settings
 
 
-SYSTEM_PROMPT = (
-    "You are an annotation assistant for the GMF Annotation Platform MVP. "
-    "Read the incident carefully and classify it into the two GMF technical "
-    "failure categories. Return JSON only with exactly these keys: "
-    "`known_ai_technical_failure` and `potential_ai_technical_failure`. "
-    "Each value must be an array of label strings. Use an empty array when "
-    "the incident does not support any label in that category. Base your "
-    "answer only on the provided incident data."
-)
-
-
 class StructuredPrediction(BaseModel):
-    known_ai_technical_failure: list[str] = Field(default_factory=list)
-    potential_ai_technical_failure: list[str] = Field(default_factory=list)
+    known_ai_technical_failure: list[KnownAITechnicalFailureLabel] = Field(default_factory=list)
+    potential_ai_technical_failure: list[PotentialAITechnicalFailureLabel] = Field(default_factory=list)
 
 
 @lru_cache(maxsize=1)
@@ -30,17 +24,52 @@ def _get_openai_client() -> OpenAI:
     )
 
 
-def predict_incident(title: str | None, report_text: str) -> dict[str, object]:
-    client = _get_openai_client()
-    user_prompt = (
+def build_incident_prompt(title: str | None, report_text: str) -> str:
+    return (
         "Incident data:\n"
         f"Title: {title or 'N/A'}\n"
         "Report Text:\n"
         f"{report_text}"
     )
 
+
+def chat_completion(
+    title: str | None,
+    report_text: str,
+    history: list[dict[str, str]],
+    message: str,
+) -> str:
+    client = _get_openai_client()
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": build_incident_prompt(title, report_text)},
+        *history,
+        {"role": "user", "content": message},
+    ]
+    try:
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=messages,
+            temperature=settings.openai_temperature,
+        )
+    except Exception as exc:
+        raise RuntimeError("OpenAI request failed.") from exc
+    return response.choices[0].message.content
+
+
+def predict_incident(
+    title: str | None,
+    report_text: str,
+    model_name: str | None = None,
+    temperature: float | None = None,
+) -> dict[str, object]:
+    client = _get_openai_client()
+    user_prompt = build_incident_prompt(title, report_text)
+    model = model_name or settings.openai_model
+    temp = temperature if temperature is not None else settings.openai_temperature
+
     request_kwargs = {
-        "model": settings.openai_model,
+        "model": model,
         "instructions": SYSTEM_PROMPT,
         "input": [
             {
@@ -54,7 +83,7 @@ def predict_incident(title: str | None, report_text: str) -> dict[str, object]:
             }
         ],
         "text_format": StructuredPrediction,
-        "temperature": settings.openai_temperature,
+        "temperature": temp,
     }
     if settings.openai_max_completion_tokens is not None:
         request_kwargs["max_output_tokens"] = settings.openai_max_completion_tokens
@@ -62,7 +91,14 @@ def predict_incident(title: str | None, report_text: str) -> dict[str, object]:
     try:
         response = client.responses.parse(**request_kwargs)
     except Exception as exc:
-        raise RuntimeError("OpenAI request failed.") from exc
+        if temp is not None and "Unsupported parameter: 'temperature'" in str(exc):
+            request_kwargs.pop("temperature", None)
+            try:
+                response = client.responses.parse(**request_kwargs)
+            except Exception as retry_exc:
+                raise RuntimeError("OpenAI request failed.") from retry_exc
+        else:
+            raise RuntimeError("OpenAI request failed.") from exc
 
     raw_response = response.model_dump_json()
     parsed = response.output_parsed
@@ -73,7 +109,7 @@ def predict_incident(title: str | None, report_text: str) -> dict[str, object]:
     return {
         "known_ai_technical_failure": parsed.known_ai_technical_failure,
         "potential_ai_technical_failure": parsed.potential_ai_technical_failure,
-        "model_name": settings.openai_model,
+        "model_name": model,
         "raw_response": raw_response,
         "input_tokens": getattr(usage, "input_tokens", None),
         "output_tokens": getattr(usage, "output_tokens", None),
