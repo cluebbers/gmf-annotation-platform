@@ -1,5 +1,11 @@
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
 def _optional_int(name: str) -> int | None:
@@ -18,7 +24,7 @@ class Settings:
     postgres_password: str = os.getenv("POSTGRES_PASSWORD", "postgres")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
-    openai_prompt_version: str = os.getenv("OPENAI_PROMPT_VERSION", "v1")
+    openai_prompt_version: str = os.getenv("OPENAI_PROMPT_VERSION", "v2")
     openai_temperature: float = float(os.getenv("OPENAI_TEMPERATURE", "0.0"))
     openai_max_completion_tokens: int | None = _optional_int(
         "OPENAI_MAX_COMPLETION_TOKENS"
