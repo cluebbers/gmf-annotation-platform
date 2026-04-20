@@ -1,6 +1,6 @@
 from time import perf_counter
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,13 @@ router = APIRouter()
 
 
 @router.post("/predict/{incident_id}", response_model=PredictResponse)
-def predict(incident_id: int, db: Session = Depends(get_db)) -> PredictResponse:
+def predict(
+    incident_id: int,
+    model_name: str | None = Query(default=None),
+    prompt_version: str | None = Query(default=None),
+    temperature: float | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> PredictResponse:
     incident = db.get(Incident, incident_id)
     if incident is None:
         raise HTTPException(
@@ -44,6 +50,8 @@ def predict(incident_id: int, db: Session = Depends(get_db)) -> PredictResponse:
         result = predict_incident(
             title=incident.title,
             report_text=incident.report_text,
+            model_name=model_name,
+            temperature=temperature,
         )
     except RuntimeError as exc:
         raise HTTPException(
@@ -58,6 +66,8 @@ def predict(incident_id: int, db: Session = Depends(get_db)) -> PredictResponse:
         result=result,
         prediction=prediction,
         latency_ms=int((perf_counter() - started_at) * 1000),
+        prompt_version=prompt_version,
+        temperature=temperature,
     )
 
     return PredictResponse(
@@ -95,13 +105,15 @@ def _save_successful_prediction(
     result: dict[str, object],
     prediction: PredictionLabels,
     latency_ms: int,
+    prompt_version: str | None = None,
+    temperature: float | None = None,
 ) -> ModelRun:
     model_run = ModelRun(
         incident_id=incident_id,
         provider="openai",
         model_name=str(result["model_name"]),
-        prompt_version=settings.openai_prompt_version,
-        temperature=settings.openai_temperature,
+        prompt_version=prompt_version or settings.openai_prompt_version,
+        temperature=temperature if temperature is not None else settings.openai_temperature,
         max_completion_tokens=settings.openai_max_completion_tokens,
         status=RunStatus.success,
         latency_ms=latency_ms,
