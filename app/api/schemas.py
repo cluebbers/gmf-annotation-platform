@@ -45,3 +45,21 @@ class PredictResponse(BaseModel):
     incident_id: int
     model_run: ModelRunRead
     prediction: PredictionLabels
+
+
+class CategoryMetrics(BaseModel):
+    precision: float
+    recall: float
+    f1: float
+
+
+class CompareResponse(BaseModel):
+    model_name: str
+    prompt_version: str
+    temperature: float | None
+    gold_incident_count: int
+    covered_incident_count: int
+    avg_input_tokens: float | None
+    avg_output_tokens: float | None
+    known_ai_technical_failure: CategoryMetrics
+    potential_ai_technical_failure: CategoryMetrics
