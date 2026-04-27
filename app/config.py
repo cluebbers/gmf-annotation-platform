@@ -41,6 +41,19 @@ class Settings:
         "OPENAI_MAX_COMPLETION_TOKENS"
     )
     openai_timeout_seconds: int = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
+    google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
+    google_model: str = os.getenv("GOOGLE_MODEL", "gemini-2.0-flash")
+    google_prompt_version: str = os.getenv("GOOGLE_PROMPT_VERSION", "v2")
+    google_temperature: float = float(os.getenv("GOOGLE_TEMPERATURE", "0.0"))
+    google_max_output_tokens: int | None = _optional_int("GOOGLE_MAX_OUTPUT_TOKENS")
+    google_timeout_seconds: int = int(os.getenv("GOOGLE_TIMEOUT_SECONDS", "30"))
+    hf_token: str = os.getenv("HF_TOKEN", "")
+    hf_model: str = os.getenv("HF_MODEL", "meta-llama/Llama-3.3-70B-Instruct")
+    hf_provider: str = os.getenv("HF_PROVIDER", "auto")
+    hf_prompt_version: str = os.getenv("HF_PROMPT_VERSION", "v2")
+    hf_temperature: float = float(os.getenv("HF_TEMPERATURE", "0.0"))
+    hf_max_tokens: int | None = _optional_int("HF_MAX_TOKENS")
+    hf_timeout_seconds: int = int(os.getenv("HF_TIMEOUT_SECONDS", "60"))
 
     @property
     def database_url(self) -> str:

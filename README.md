@@ -21,14 +21,6 @@ The MVP only supports these two GMF categories:
 - `uv`
 - `OPENAI_API_KEY` only if you want to run predictions
 
-### If You Used An Older Version
-
-This MVP uses a simplified schema. If you already ran an older version of the project, reset the local Postgres volume before reimporting:
-
-```bash
-docker compose down -v
-```
-
 ### Environment File
 
 Copy `.env.example` to `.env` and adjust values if needed.

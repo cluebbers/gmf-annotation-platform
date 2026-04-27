@@ -7,15 +7,28 @@ from sqlalchemy.orm import Session
 
 from app.api.schemas import CategoryMetrics, CompareResponse
 from app.db import get_db
-from app.db.tables import Annotation, AnnotationSource, GmfCategory, Incident, ModelRun, RunStatus
+from app.db.tables import (
+    Annotation,
+    AnnotationSource,
+    GmfCategory,
+    Incident,
+    ModelRun,
+    RunStatus,
+)
 
 router = APIRouter()
 
-ALLOWED_MODELS = ["gpt-4o-mini", "gpt-5-mini"]
+ALLOWED_MODELS = [
+    "gpt-4o-mini",
+    "gpt-5-mini",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+]
 
 
 class CompareConfigsResponse(BaseModel):
     """Schema for available comparison configurations."""
+
     models: list[str]
     prompt_versions: list[str]
     temperatures: list[float]
@@ -31,12 +44,25 @@ def compare_configs(db: Session = Depends(get_db)) -> CompareConfigsResponse:
     Returns:
         Available models, prompt versions, and temperatures.
     """
-    prompt_versions = db.execute(
-        select(ModelRun.prompt_version).distinct().order_by(ModelRun.prompt_version.asc())
-    ).scalars().all()
-    temperatures = db.execute(
-        select(ModelRun.temperature).distinct().where(ModelRun.temperature.isnot(None)).order_by(ModelRun.temperature.asc())
-    ).scalars().all()
+    prompt_versions = (
+        db.execute(
+            select(ModelRun.prompt_version)
+            .distinct()
+            .order_by(ModelRun.prompt_version.asc())
+        )
+        .scalars()
+        .all()
+    )
+    temperatures = (
+        db.execute(
+            select(ModelRun.temperature)
+            .distinct()
+            .where(ModelRun.temperature.isnot(None))
+            .order_by(ModelRun.temperature.asc())
+        )
+        .scalars()
+        .all()
+    )
     return CompareConfigsResponse(
         models=ALLOWED_MODELS,
         prompt_versions=list(prompt_versions),
@@ -90,7 +116,9 @@ def _metrics(tp: int, fp: int, fn: int) -> CategoryMetrics:
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     f1 = 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) > 0 else 0.0
-    return CategoryMetrics(precision=round(precision, 4), recall=round(recall, 4), f1=round(f1, 4))
+    return CategoryMetrics(
+        precision=round(precision, 4), recall=round(recall, 4), f1=round(f1, 4)
+    )
 
 
 @router.get("/compare", response_model=CompareResponse)
@@ -111,9 +139,11 @@ def compare(
     Returns:
         Comparison results including metrics.
     """
-    gold_incidents = db.execute(
-        select(Incident.id).where(Incident.is_gold_set.is_(True))
-    ).scalars().all()
+    gold_incidents = (
+        db.execute(select(Incident.id).where(Incident.is_gold_set.is_(True)))
+        .scalars()
+        .all()
+    )
 
     totals: dict[GmfCategory, dict[str, int]] = {
         GmfCategory.known_ai_technical_failure: {"tp": 0, "fp": 0, "fn": 0},
@@ -125,18 +155,17 @@ def compare(
     token_count = 0
 
     for incident_id in gold_incidents:
-        stmt = (
-            select(ModelRun)
-            .where(
-                ModelRun.incident_id == incident_id,
-                ModelRun.model_name == model_name,
-                ModelRun.prompt_version == prompt_version,
-                ModelRun.status == RunStatus.success,
-            )
+        stmt = select(ModelRun).where(
+            ModelRun.incident_id == incident_id,
+            ModelRun.model_name == model_name,
+            ModelRun.prompt_version == prompt_version,
+            ModelRun.status == RunStatus.success,
         )
         if temperature is not None:
             stmt = stmt.where(ModelRun.temperature == temperature)
-        run = db.execute(stmt.order_by(ModelRun.created_at.desc()).limit(1)).scalar_one_or_none()
+        run = db.execute(
+            stmt.order_by(ModelRun.created_at.desc()).limit(1)
+        ).scalar_one_or_none()
 
         if run is None:
             continue
@@ -148,7 +177,9 @@ def compare(
             token_count += 1
 
         gold = _label_sets(db, incident_id, AnnotationSource.gold)
-        pred = _label_sets(db, incident_id, AnnotationSource.prediction, model_run_id=run.id)
+        pred = _label_sets(
+            db, incident_id, AnnotationSource.prediction, model_run_id=run.id
+        )
 
         for category in totals:
             g = gold[category]
@@ -163,8 +194,16 @@ def compare(
         temperature=temperature,
         gold_incident_count=len(gold_incidents),
         covered_incident_count=covered,
-        avg_input_tokens=round(total_input_tokens / token_count, 1) if token_count else None,
-        avg_output_tokens=round(total_output_tokens / token_count, 1) if token_count else None,
-        known_ai_technical_failure=_metrics(**totals[GmfCategory.known_ai_technical_failure]),
-        potential_ai_technical_failure=_metrics(**totals[GmfCategory.potential_ai_technical_failure]),
+        avg_input_tokens=(
+            round(total_input_tokens / token_count, 1) if token_count else None
+        ),
+        avg_output_tokens=(
+            round(total_output_tokens / token_count, 1) if token_count else None
+        ),
+        known_ai_technical_failure=_metrics(
+            **totals[GmfCategory.known_ai_technical_failure]
+        ),
+        potential_ai_technical_failure=_metrics(
+            **totals[GmfCategory.potential_ai_technical_failure]
+        ),
     )

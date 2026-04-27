@@ -6,8 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+import app.ai_clients.google as google_client
+import app.ai_clients.huggingface as hf_client
+import app.ai_clients.openai as openai_client
 from app.ai_clients.gmf_taxonomy import SYSTEM_PROMPT
-from app.ai_clients.openai import chat_completion
+from app.api.routes.prediction import _resolve_provider
+from app.config import settings
 from app.db import get_db
 from app.db.tables import Incident
 
@@ -24,6 +28,7 @@ class ChatRequest(BaseModel):
     """Schema for a chat request."""
     message: str
     history: list[ChatMessage] = Field(default_factory=list)
+    model: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -67,7 +72,14 @@ def chat(incident_id: int, body: ChatRequest, db: Session = Depends(get_db)) -> 
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Incident not found.",
         )
-    content = chat_completion(
+    effective_model = body.model or settings.openai_model
+    provider = _resolve_provider(effective_model)
+    chat_fn = {
+        "google": google_client.chat_completion,
+        "huggingface": hf_client.chat_completion,
+        "openai": openai_client.chat_completion,
+    }[provider]
+    content = chat_fn(
         title=incident.title,
         report_text=incident.report_text,
         history=[{"role": m.role, "content": m.content} for m in body.history],

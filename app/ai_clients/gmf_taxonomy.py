@@ -1,6 +1,26 @@
 """GMF taxonomy definitions and system prompt."""
 
 from typing import Literal
+from pydantic import BaseModel, Field
+
+
+
+def build_incident_prompt(title: str | None, report_text: str) -> str:
+    """Build incident prompt for OpenAI.
+
+    Args:
+        title: Incident title.
+        report_text: Incident report text.
+
+    Returns:
+        Formatted prompt.
+    """
+    return (
+        "Incident data:\n"
+        f"Title: {title or 'N/A'}\n"
+        "Report Text:\n"
+        f"{report_text}"
+    )
 
 
 KnownAITechnicalFailureLabel = Literal[
@@ -156,3 +176,15 @@ SYSTEM_PROMPT = (
     "Use an empty array when the incident does not support any label in that category. "
     "Base your answer only on the provided incident data."
 )
+
+
+
+class StructuredPrediction(BaseModel):
+    """Schema for structured prediction output from OpenAI."""
+
+    known_ai_technical_failure: list[KnownAITechnicalFailureLabel] = Field(
+        default_factory=list
+    )
+    potential_ai_technical_failure: list[PotentialAITechnicalFailureLabel] = Field(
+        default_factory=list
+    )

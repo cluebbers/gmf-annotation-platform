@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.ai_clients.openai import predict_incident
+import app.ai_clients.google as google_client
+import app.ai_clients.huggingface as hf_client
+import app.ai_clients.openai as openai_client
 from app.api.schemas import (
     ModelRunRead,
     PredictResponse,
@@ -24,6 +26,14 @@ from app.db.tables import (
 )
 
 router = APIRouter()
+
+
+def _resolve_provider(model_name: str) -> str:
+    if model_name.startswith("gemini"):
+        return "google"
+    if "/" in model_name:
+        return "huggingface"
+    return "openai"
 
 
 @router.post("/predict/{incident_id}", response_model=PredictResponse)
@@ -56,15 +66,34 @@ def predict(
             detail="Incident not found.",
         )
 
-    if not settings.openai_api_key:
+    effective_model = model_name or settings.openai_model
+    provider = _resolve_provider(effective_model)
+
+    if provider == "google" and not settings.google_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="GOOGLE_API_KEY is not configured.",
+        )
+    if provider == "huggingface" and not settings.hf_token:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="HF_TOKEN is not configured.",
+        )
+    if provider == "openai" and not settings.openai_api_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="OPENAI_API_KEY is not configured.",
         )
 
+    predict_fn = {
+        "google": google_client.predict_incident,
+        "huggingface": hf_client.predict_incident,
+        "openai": openai_client.predict_incident,
+    }[provider]
+
     started_at = perf_counter()
     try:
-        result = predict_incident(
+        result = predict_fn(
             title=incident.title,
             report_text=incident.report_text,
             model_name=model_name,
@@ -82,6 +111,7 @@ def predict(
         incident_id=incident.id,
         result=result,
         prediction=prediction,
+        provider=provider,
         latency_ms=int((perf_counter() - started_at) * 1000),
         prompt_version=prompt_version,
         temperature=temperature,
@@ -129,6 +159,7 @@ def _save_successful_prediction(
     incident_id: int,
     result: dict[str, object],
     prediction: PredictionLabels,
+    provider: str,
     latency_ms: int,
     prompt_version: str | None = None,
     temperature: float | None = None,
@@ -140,6 +171,7 @@ def _save_successful_prediction(
         incident_id: The incident ID.
         result: Raw prediction result.
         prediction: Normalized prediction labels.
+        provider: Provider name ("openai", "google", "huggingface").
         latency_ms: Latency in milliseconds.
         prompt_version: Optional prompt version.
         temperature: Optional temperature.
@@ -147,13 +179,26 @@ def _save_successful_prediction(
     Returns:
         Created ModelRun.
     """
+    if provider == "google":
+        default_prompt_version = settings.google_prompt_version
+        default_temperature = settings.google_temperature
+        default_max_tokens = settings.google_max_output_tokens
+    elif provider == "huggingface":
+        default_prompt_version = settings.hf_prompt_version
+        default_temperature = settings.hf_temperature
+        default_max_tokens = settings.hf_max_tokens
+    else:
+        default_prompt_version = settings.openai_prompt_version
+        default_temperature = settings.openai_temperature
+        default_max_tokens = settings.openai_max_completion_tokens
+
     model_run = ModelRun(
         incident_id=incident_id,
-        provider="openai",
+        provider=provider,
         model_name=str(result["model_name"]),
-        prompt_version=prompt_version or settings.openai_prompt_version,
-        temperature=temperature if temperature is not None else settings.openai_temperature,
-        max_completion_tokens=settings.openai_max_completion_tokens,
+        prompt_version=prompt_version or default_prompt_version,
+        temperature=temperature if temperature is not None else default_temperature,
+        max_completion_tokens=default_max_tokens,
         status=RunStatus.success,
         latency_ms=latency_ms,
         input_tokens=result["input_tokens"] if isinstance(result["input_tokens"], int) else None,

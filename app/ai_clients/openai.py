@@ -1,25 +1,13 @@
 """OpenAI integration for predictions and chat."""
 
-from functools import lru_cache
 
 from openai import OpenAI
-from pydantic import BaseModel, Field
 
-from app.ai_clients.gmf_taxonomy import (
-    KnownAITechnicalFailureLabel,
-    PotentialAITechnicalFailureLabel,
-    SYSTEM_PROMPT,
-)
+from app.ai_clients.gmf_taxonomy import (SYSTEM_PROMPT, StructuredPrediction,
+                                         build_incident_prompt)
 from app.config import settings
 
 
-class StructuredPrediction(BaseModel):
-    """Schema for structured prediction output from OpenAI."""
-    known_ai_technical_failure: list[KnownAITechnicalFailureLabel] = Field(default_factory=list)
-    potential_ai_technical_failure: list[PotentialAITechnicalFailureLabel] = Field(default_factory=list)
-
-
-@lru_cache(maxsize=1)
 def _get_openai_client() -> OpenAI:
     """Get OpenAI client singleton.
 
@@ -29,24 +17,6 @@ def _get_openai_client() -> OpenAI:
     return OpenAI(
         api_key=settings.openai_api_key,
         timeout=settings.openai_timeout_seconds,
-    )
-
-
-def build_incident_prompt(title: str | None, report_text: str) -> str:
-    """Build incident prompt for OpenAI.
-
-    Args:
-        title: Incident title.
-        report_text: Incident report text.
-
-    Returns:
-        Formatted prompt.
-    """
-    return (
-        "Incident data:\n"
-        f"Title: {title or 'N/A'}\n"
-        "Report Text:\n"
-        f"{report_text}"
     )
 
 
