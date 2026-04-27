@@ -154,6 +154,15 @@ with st.sidebar:
         format_func=lambda x: incident_labels[x],
     )
 
+PROVIDER_LABELS = {"openai": "OpenAI", "google": "Google", "huggingface": "HuggingFace"}
+
+# ── Shared config (model lists, prompt versions, temperatures) ────────────────
+try:
+    configs = call_api("GET", "/compare/configs")
+except RuntimeError as exc:
+    st.error(str(exc))
+    st.stop()
+
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 tab_annotate, tab_compare = st.tabs(["Annotate", "Compare"])
 
@@ -195,17 +204,18 @@ with tab_annotate:
     with right_col:
         st.subheader("Conversation")
 
-        try:
-            ann_configs = call_api("GET", "/compare/configs")
-        except RuntimeError as exc:
-            st.error(str(exc))
-            st.stop()
-
+        ann_provider = st.radio(
+            "Provider",
+            list(configs["models_by_provider"].keys()),
+            horizontal=True,
+            key="ann_provider",
+            format_func=lambda p: PROVIDER_LABELS.get(p, p),
+        )
         cfg_col_a, cfg_col_b, cfg_col_c = st.columns(3)
         with cfg_col_a:
-            ann_model = st.selectbox("Model", ann_configs["models"], key="ann_model")
+            ann_model = st.selectbox("Model", configs["models_by_provider"][ann_provider], key=f"ann_model_{ann_provider}")
         with cfg_col_b:
-            ann_prompt_versions = ann_configs["prompt_versions"]
+            ann_prompt_versions = configs["prompt_versions"]
             if ann_prompt_versions:
                 ann_prompt = st.selectbox("Prompt version", ann_prompt_versions, key="ann_prompt")
             else:
@@ -307,15 +317,16 @@ with tab_compare:
     st.subheader("Comparative Analysis")
     st.caption("Micro-averaged precision, recall, and F1 across all gold incidents. Each run adds a row to the table below.")
 
-    try:
-        configs = call_api("GET", "/compare/configs")
-    except RuntimeError as exc:
-        st.error(str(exc))
-        st.stop()
-
+    cmp_provider = st.radio(
+        "Provider",
+        list(configs["models_by_provider"].keys()),
+        horizontal=True,
+        key="cmp_provider",
+        format_func=lambda p: PROVIDER_LABELS.get(p, p),
+    )
     cmp_col_a, cmp_col_b, cmp_col_c = st.columns(3)
     with cmp_col_a:
-        cmp_model = st.selectbox("Model name", configs["models"], key="cmp_model")
+        cmp_model = st.selectbox("Model name", configs["models_by_provider"][cmp_provider], key=f"cmp_model_{cmp_provider}")
     with cmp_col_b:
         prompt_versions = configs["prompt_versions"]
         if prompt_versions:
