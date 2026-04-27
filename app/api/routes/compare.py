@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.schemas import CategoryMetrics, CompareResponse
+from app.config import GOOGLE_MODELS, HF_MODELS, OPENAI_MODELS
 from app.db import get_db
 from app.db.tables import (
     Annotation,
@@ -18,18 +19,11 @@ from app.db.tables import (
 
 router = APIRouter()
 
-ALLOWED_MODELS = [
-    "gpt-4o-mini",
-    "gpt-5-mini",
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-]
-
 
 class CompareConfigsResponse(BaseModel):
     """Schema for available comparison configurations."""
 
-    models: list[str]
+    models_by_provider: dict[str, list[str]]
     prompt_versions: list[str]
     temperatures: list[float]
 
@@ -64,7 +58,11 @@ def compare_configs(db: Session = Depends(get_db)) -> CompareConfigsResponse:
         .all()
     )
     return CompareConfigsResponse(
-        models=ALLOWED_MODELS,
+        models_by_provider={
+            "openai": OPENAI_MODELS,
+            "google": GOOGLE_MODELS,
+            "huggingface": HF_MODELS,
+        },
         prompt_versions=list(prompt_versions),
         temperatures=list(temperatures),
     )
