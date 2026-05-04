@@ -2,14 +2,14 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 import app.ai_clients.google as google_client
 import app.ai_clients.huggingface as hf_client
 import app.ai_clients.openai as openai_client
-from app.ai_clients.gmf_taxonomy import SYSTEM_PROMPT
+from app.ai_clients.prompts import SYSTEM_PROMPTS, get_prompt
 from app.api.routes.prediction import _resolve_provider
 from app.config import settings
 from app.db import get_db
@@ -29,6 +29,7 @@ class ChatRequest(BaseModel):
     message: str
     history: list[ChatMessage] = Field(default_factory=list)
     model: str | None = None
+    prompt_version: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -39,16 +40,23 @@ class ChatResponse(BaseModel):
 class SystemPromptResponse(BaseModel):
     """Schema for system prompt response."""
     system_prompt: str
+    available_versions: list[str]
 
 
 @router.get("/system-prompt", response_model=SystemPromptResponse)
-def get_system_prompt() -> SystemPromptResponse:
-    """Get the system prompt for chat.
+def get_system_prompt(version: str | None = Query(default=None)) -> SystemPromptResponse:
+    """Get the system prompt for a given version, plus all available version keys.
+
+    Args:
+        version: Optional prompt version key.
 
     Returns:
         System prompt response.
     """
-    return SystemPromptResponse(system_prompt=SYSTEM_PROMPT)
+    return SystemPromptResponse(
+        system_prompt=get_prompt(version),
+        available_versions=list(SYSTEM_PROMPTS.keys()),
+    )
 
 
 @router.post("/chat/{incident_id}", response_model=ChatResponse)
@@ -84,5 +92,6 @@ def chat(incident_id: int, body: ChatRequest, db: Session = Depends(get_db)) -> 
         report_text=incident.report_text,
         history=[{"role": m.role, "content": m.content} for m in body.history],
         message=body.message,
+        system_prompt=get_prompt(body.prompt_version),
     )
     return ChatResponse(content=content)

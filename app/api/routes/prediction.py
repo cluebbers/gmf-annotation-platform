@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 import app.ai_clients.google as google_client
 import app.ai_clients.huggingface as hf_client
 import app.ai_clients.openai as openai_client
+from app.ai_clients.prompts import get_prompt
 from app.api.schemas import (
     ModelRunRead,
     PredictResponse,
@@ -91,6 +92,16 @@ def predict(
         "openai": openai_client.predict_incident,
     }[provider]
 
+    if provider == "google":
+        default_prompt_version = settings.google_prompt_version
+    elif provider == "huggingface":
+        default_prompt_version = settings.hf_prompt_version
+    else:
+        default_prompt_version = settings.openai_prompt_version
+
+    effective_prompt_version = prompt_version or default_prompt_version
+    system_prompt = get_prompt(effective_prompt_version)
+
     started_at = perf_counter()
     try:
         result = predict_fn(
@@ -98,6 +109,7 @@ def predict(
             report_text=incident.report_text,
             model_name=model_name,
             temperature=temperature,
+            system_prompt=system_prompt,
         )
     except RuntimeError as exc:
         raise HTTPException(

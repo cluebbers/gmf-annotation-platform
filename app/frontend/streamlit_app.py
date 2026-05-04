@@ -215,24 +215,26 @@ with tab_annotate:
         with cfg_col_a:
             ann_model = st.selectbox("Model", configs["models_by_provider"][ann_provider], key=f"ann_model_{ann_provider}")
         with cfg_col_b:
-            ann_prompt_versions = configs["prompt_versions"]
-            if ann_prompt_versions:
-                ann_prompt = st.selectbox("Prompt version", ann_prompt_versions, key="ann_prompt")
-            else:
-                st.caption("No prompt versions in DB yet — will use default.")
-                ann_prompt = None
+            try:
+                system_prompt_data = call_api("GET", "/system-prompt")
+                available_versions = system_prompt_data["available_versions"]
+            except RuntimeError:
+                available_versions = []
+                system_prompt_data = None
+            ann_prompt = st.selectbox("Prompt version", available_versions, key="ann_prompt") if available_versions else None
         with cfg_col_c:
             ann_temperature = st.slider("Temperature", min_value=0.0, max_value=2.0, value=0.0, step=0.1, key="ann_temperature")
 
         run_btn = st.button("Run prediction", type="primary")
 
         try:
-            system_prompt = call_api("GET", "/system-prompt")["system_prompt"]
+            prompt_response = call_api("GET", "/system-prompt", params={"version": ann_prompt} if ann_prompt else None)
+            system_prompt = prompt_response["system_prompt"]
         except RuntimeError:
             system_prompt = None
 
         with st.chat_message("system"):
-            st.caption("System prompt")
+            st.caption(f"System prompt ({ann_prompt})" if ann_prompt else "System prompt")
             if system_prompt:
                 st.write(system_prompt)
             else:
@@ -299,7 +301,7 @@ with tab_annotate:
                     response = call_api(
                         "POST",
                         f"/chat/{selected_id}",
-                        body={"message": user_msg, "history": history},
+                        body={"message": user_msg, "history": history, "prompt_version": ann_prompt},
                     )
                     conversation.append({"role": "user", "kind": "chat", "content": user_msg})
                     conversation.append({"role": "assistant", "kind": "chat", "content": response["content"]})
