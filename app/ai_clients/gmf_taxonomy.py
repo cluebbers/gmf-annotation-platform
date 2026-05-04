@@ -160,25 +160,6 @@ PotentialAITechnicalFailureLabel = Literal[
 ]
 """Potential AI technical failure labels."""
 
-_known_labels = ", ".join(sorted(KnownAITechnicalFailureLabel.__args__))
-_potential_labels = ", ".join(sorted(PotentialAITechnicalFailureLabel.__args__))
-
-SYSTEM_PROMPT = (
-    "You are an annotation assistant for the GMF Annotation Platform MVP. "
-    "Read the incident carefully and classify it into the two GMF technical "
-    "failure categories below. Each value in your response MUST be chosen "
-    "exactly from the allowed labels for that category — do not invent new labels.\n\n"
-    f"Allowed labels for `known_ai_technical_failure`:\n{_known_labels}\n\n"
-    f"Allowed labels for `potential_ai_technical_failure`:\n{_potential_labels}\n\n"
-    "Return JSON only with exactly these keys: "
-    "`known_ai_technical_failure` and `potential_ai_technical_failure`. "
-    "Each value must be an array of label strings drawn from the lists above. "
-    "Use an empty array when the incident does not support any label in that category. "
-    "Base your answer only on the provided incident data."
-)
-
-
-
 class StructuredPrediction(BaseModel):
     """Schema for structured prediction output from OpenAI."""
 

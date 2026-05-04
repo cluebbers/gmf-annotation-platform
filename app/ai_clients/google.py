@@ -5,11 +5,7 @@ from functools import lru_cache
 from google import genai
 from google.genai import types
 
-from app.ai_clients.gmf_taxonomy import (
-    SYSTEM_PROMPT,
-    StructuredPrediction,
-    build_incident_prompt,
-)
+from app.ai_clients.gmf_taxonomy import StructuredPrediction, build_incident_prompt
 from app.config import settings
 
 
@@ -26,6 +22,7 @@ def chat_completion(
     report_text: str,
     history: list[dict[str, str]],
     message: str,
+    system_prompt: str = "",
 ) -> str:
     """Get chat completion for an incident.
 
@@ -34,6 +31,7 @@ def chat_completion(
         report_text: Incident report text.
         history: Chat history as list of {"role": "user"/"assistant", "content": "..."} dicts.
         message: User message.
+        system_prompt: System prompt text.
 
     Returns:
         Chat completion response.
@@ -58,7 +56,7 @@ def chat_completion(
         response = client.models.generate_content(
             model=settings.google_model,
             config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
+                system_instruction=system_prompt,
                 temperature=settings.google_temperature,
             ),
             contents=contents,
@@ -73,6 +71,7 @@ def predict_incident(
     report_text: str,
     model_name: str | None = None,
     temperature: float | None = None,
+    system_prompt: str = "",
 ) -> dict[str, object]:
     """Predict GMF labels for an incident using Google AI.
 
@@ -81,6 +80,7 @@ def predict_incident(
         report_text: Incident report text.
         model_name: Optional model name override.
         temperature: Optional temperature override.
+        system_prompt: System prompt text.
 
     Returns:
         Prediction result with labels, model name, and token counts.
@@ -94,7 +94,7 @@ def predict_incident(
     temp = temperature if temperature is not None else settings.google_temperature
 
     config_kwargs: dict[str, object] = {
-        "system_instruction": SYSTEM_PROMPT,
+        "system_instruction": system_prompt,
         "temperature": temp,
         "response_mime_type": "application/json",
         "response_schema": StructuredPrediction,
